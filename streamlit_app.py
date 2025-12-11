@@ -133,31 +133,19 @@ def get_history(ticker: str, period='5y'):
 
 def monte_carlo_simulation(S0, returns, n_sims=1000, n_steps=252, seed=42):
     np.random.seed(seed)
-    # Convert to numpy array if pandas Series
-    if hasattr(returns, 'values'):
-        log_ret = returns.values
-    else:
-        log_ret = returns
-    
-    # Remove NaN values
-    log_ret = log_ret[~np.isnan(log_ret)]
-    
-    if len(log_ret) == 0:
+    # use log returns (daily)
+    log_ret = returns.dropna()
+    if log_ret.empty:
         raise ValueError("Not enough return data for simulation")
-    
-    mu = np.mean(log_ret)
-    sigma = np.std(log_ret)
+    mu = log_ret.mean()
+    sigma = log_ret.std()
     drift = mu - 0.5 * (sigma ** 2)
-    
-    # Ensure S0 is a scalar float
-    S0 = float(S0)
 
     rand = np.random.normal(0, 1, (n_steps, n_sims))
     price_paths = np.zeros((n_steps + 1, n_sims))
-    price_paths[0, :] = S0
-    
+    price_paths[0] = S0
     for t in range(1, n_steps + 1):
-        price_paths[t, :] = price_paths[t - 1, :] * np.exp(drift + sigma * rand[t - 1, :])
+        price_paths[t] = price_paths[t - 1] * np.exp(drift + sigma * rand[t - 1])
 
     return price_paths
 
@@ -257,9 +245,8 @@ def main():
                 return
 
             # daily log returns
-            log_returns = np.log(price_series / price_series.shift(1))
-            log_returns = log_returns.dropna().values  # Convert to numpy array
-            S0 = float(price_series.iloc[-1])
+            log_returns = np.log(price_series / price_series.shift(1)).dropna()
+            S0 = price_series.iloc[-1]
             n_steps = trading_days_for_horizon(horizon_choice)
 
             try:
