@@ -70,6 +70,11 @@ def init_history_file():
 def save_prediction(ticker, current_price, horizon, n_sims, seed, median, p10, p90, future_date):
     """Save prediction to CSV."""
     init_history_file()
+    # Ensure all values are Python natives, not pandas/numpy types
+    current_price = float(current_price)
+    median = float(median)
+    p10 = float(p10)
+    p90 = float(p90)
     with open(HISTORY_FILE, 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -133,19 +138,36 @@ def get_history(ticker: str, period='5y'):
 
 def monte_carlo_simulation(S0, returns, n_sims=1000, n_steps=252, seed=42):
     np.random.seed(seed)
-    # use log returns (daily)
-    log_ret = returns.dropna()
-    if log_ret.empty:
+    # Convert pandas Series to numpy array
+    if isinstance(returns, pd.Series):
+        log_ret_array = returns.values
+    else:
+        log_ret_array = np.asarray(returns)
+    
+    # Remove NaN values
+    log_ret_array = log_ret_array[~np.isnan(log_ret_array)]
+    
+    if len(log_ret_array) == 0:
         raise ValueError("Not enough return data for simulation")
-    mu = log_ret.mean()
-    sigma = log_ret.std()
+    
+    # Calculate statistics using numpy
+    mu = np.mean(log_ret_array)
+    sigma = np.std(log_ret_array, ddof=1)
     drift = mu - 0.5 * (sigma ** 2)
+    
+    # Ensure S0 is a pure float
+    S0 = float(S0)
 
+    # Generate random numbers
     rand = np.random.normal(0, 1, (n_steps, n_sims))
-    price_paths = np.zeros((n_steps + 1, n_sims))
-    price_paths[0] = S0
+    
+    # Initialize price paths
+    price_paths = np.zeros((n_steps + 1, n_sims), dtype=np.float64)
+    price_paths[0, :] = S0
+    
+    # Simulate paths
     for t in range(1, n_steps + 1):
-        price_paths[t] = price_paths[t - 1] * np.exp(drift + sigma * rand[t - 1])
+        price_paths[t, :] = price_paths[t - 1, :] * np.exp(drift + sigma * rand[t - 1, :])
 
     return price_paths
 
@@ -236,6 +258,12 @@ def main():
             if hist.empty:
                 st.error("Could not download historical data for that ticker.")
                 return
+            
+            # Sort by date ascending (oldest to newest) to ensure correct order
+            hist = hist.sort_index(ascending=True)
+            
+            st.write(f"**Data range: {hist.index[0].date()} to {hist.index[-1].date()}** ({len(hist)} trading days)")
+            
             if 'Adj Close' in hist.columns:
                 price_series = hist['Adj Close']
             elif 'Close' in hist.columns:
@@ -246,7 +274,7 @@ def main():
 
             # daily log returns
             log_returns = np.log(price_series / price_series.shift(1)).dropna()
-            S0 = price_series.iloc[-1]
+            S0 = float(price_series.iloc[-1])  # Convert to pure float
             n_steps = trading_days_for_horizon(horizon_choice)
 
             try:
@@ -275,7 +303,8 @@ def main():
             pct_diff_p10 = ((p10 - S0) / S0) * 100
             pct_diff_p90 = ((p90 - S0) / S0) * 100
             
-            st.write(f"**Price change from today ({S0:,.2f}):**")
+            direction = "increase" if pct_diff_median > 0 else "decrease"
+            st.write(f"**Price {direction} {abs(pct_diff_median):.2f}% from today:**")
             st.write(f"  Median: {pct_diff_median:+.2f}% | 10th %ile: {pct_diff_p10:+.2f}% | 90th %ile: {pct_diff_p90:+.2f}%")
 
             # plot sample paths
