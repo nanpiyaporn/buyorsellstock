@@ -128,6 +128,22 @@ def get_current_price(ticker: str):
 
 
 @st.cache_data(ttl=3600)
+def get_price_change_pct(ticker: str):
+    """Get daily percentage change for an index."""
+    try:
+        tk = yf.Ticker(ticker)
+        hist = tk.history(period="5d")
+        if len(hist) >= 2:
+            prev_close = float(hist['Close'].iloc[-2])
+            curr_close = float(hist['Close'].iloc[-1])
+            pct_change = ((curr_close - prev_close) / prev_close) * 100
+            return pct_change
+        return np.nan
+    except Exception:
+        return np.nan
+
+
+@st.cache_data(ttl=3600)
 def get_history(ticker: str, period='5y'):
     try:
         df = yf.download(ticker, period=period, progress=False)
@@ -197,11 +213,34 @@ def main():
         st.markdown("**Major US indices (current price)**")
         idx_col1, idx_col2, idx_col3 = st.columns(3)
         dji = get_current_price("^DJI")
+        dji_pct = get_price_change_pct("^DJI")
         ixic = get_current_price("^IXIC")
+        ixic_pct = get_price_change_pct("^IXIC")
         gspc = get_current_price("^GSPC")
-        idx_col1.metric("Dow Jones (^DJI)", f"{dji:,.2f}" if not np.isnan(dji) else "N/A")
-        idx_col2.metric("Nasdaq (^IXIC)", f"{ixic:,.2f}" if not np.isnan(ixic) else "N/A")
-        idx_col3.metric("S&P 500 (^GSPC)", f"{gspc:,.2f}" if not np.isnan(gspc) else "N/A")
+        gspc_pct = get_price_change_pct("^GSPC")
+        
+        # Format display with percentage change
+        dji_display = f"{dji:,.2f}" if not np.isnan(dji) else "N/A"
+        dji_pct_display = f" {dji_pct:+.2f}%" if not np.isnan(dji_pct) else ""
+        dji_color = "green" if (not np.isnan(dji_pct) and dji_pct >= 0) else "red"
+        dji_arrow = "↑" if (not np.isnan(dji_pct) and dji_pct >= 0) else "↓"
+        
+        ixic_display = f"{ixic:,.2f}" if not np.isnan(ixic) else "N/A"
+        ixic_pct_display = f" {ixic_pct:+.2f}%" if not np.isnan(ixic_pct) else ""
+        ixic_color = "green" if (not np.isnan(ixic_pct) and ixic_pct >= 0) else "red"
+        ixic_arrow = "↑" if (not np.isnan(ixic_pct) and ixic_pct >= 0) else "↓"
+        
+        gspc_display = f"{gspc:,.2f}" if not np.isnan(gspc) else "N/A"
+        gspc_pct_display = f" {gspc_pct:+.2f}%" if not np.isnan(gspc_pct) else ""
+        gspc_color = "green" if (not np.isnan(gspc_pct) and gspc_pct >= 0) else "red"
+        gspc_arrow = "↑" if (not np.isnan(gspc_pct) and gspc_pct >= 0) else "↓"
+        
+        with idx_col1:
+            st.metric("Dow Jones (^DJI)", dji_display, f"{dji_arrow} {dji_pct_display}".strip())
+        with idx_col2:
+            st.metric("Nasdaq (^IXIC)", ixic_display, f"{ixic_arrow} {ixic_pct_display}".strip())
+        with idx_col3:
+            st.metric("S&P 500 (^GSPC)", gspc_display, f"{gspc_arrow} {gspc_pct_display}".strip())
 
     st.markdown("---")
 
@@ -286,6 +325,9 @@ def main():
             final_prices = paths[-1]
             median = np.median(final_prices)
             p10 = np.percentile(final_prices, 10)
+            p25 = np.percentile(final_prices, 25)
+            p50 = np.percentile(final_prices, 50)
+            p75 = np.percentile(final_prices, 75)
             p90 = np.percentile(final_prices, 90)
 
             # Calculate future date
@@ -296,7 +338,24 @@ def main():
 
             st.success(f"Simulation complete ({sims} sims, horizon: {horizon_choice})")
             st.write(f"Predicted median price after {horizon_choice}: {median:,.2f}")
-            st.write(f"10th percentile: {p10:,.2f}  —  90th percentile: {p90:,.2f}")
+            
+            # Display 5 percentiles in 2 rows x 5 columns
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                st.write("**10%**")
+                st.write(f"{p10:,.2f}")
+            with col2:
+                st.write("**25%**")
+                st.write(f"{p25:,.2f}")
+            with col3:
+                st.write("**50%**")
+                st.write(f"{p50:,.2f}")
+            with col4:
+                st.write("**75%**")
+                st.write(f"{p75:,.2f}")
+            with col5:
+                st.write("**90%**")
+                st.write(f"{p90:,.2f}")
             
             # Calculate % differences
             pct_diff_median = ((median - S0) / S0) * 100
