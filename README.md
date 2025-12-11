@@ -265,7 +265,8 @@ Once actual price is entered:
 
 ---
 ## Try the code here ##
-![Streamlit:buysellstock](https://buyorsellstock.streamlit.app/)
+
+[Streamlit:buysellstock](https://buyorsellstock.streamlit.app/)
 
 ## 📝 License
 
