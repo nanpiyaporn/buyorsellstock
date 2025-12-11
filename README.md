@@ -41,7 +41,7 @@ streamlit run streamlit_app.py
 ## 📸 Screenshots & Features
 
 ### 1. Main Dashboard Header
-![Dashboard Header](screenshots/dashboard_header.png)
+![Dashboard Header](img/stock_checker_app_piyaporn_firstpage.jpg)
 
 **Description:**
 - **Current local date & time**: Real-time clock showing when prediction was made
@@ -62,7 +62,7 @@ streamlit run streamlit_app.py
 - **Random seed**: Control randomness for reproducibility
 
 ### 3. Current Stock Price Display
-![Stock Info](screenshots/stock_info.png)
+![Stock Info](img/stock_checker_app_piyaporn_firstpage2.jpg)
 
 **Description:**
 - Displays selected ticker (e.g., "Ticker: CVNA")
@@ -70,7 +70,7 @@ streamlit run streamlit_app.py
 - "Run Monte Carlo Prediction" button to start simulation
 
 ### 4. Simulation Results & Percentiles
-![Percentiles](screenshots/percentiles.png)
+![Percentiles](img/stock_checker_app_piyaporn_graph_result.jpg)
 
 **Description:**
 - **Success message**: Confirms simulation complete with number of sims and time horizon
@@ -81,8 +81,8 @@ streamlit run streamlit_app.py
 - **Price change indicator**: Shows % increase/decrease from today's price
   - "Price increase 38.66% from today:" (or decrease if negative)
 
-### 5. Simulated Price Paths Chart
-![Price Paths](screenshots/price_paths.png)
+### 5. Simulated distibution Paths Chart
+![simulation](img/stock_checker_app_piyaporn_graph_result_distibution.jpg)
 
 **Description:**
 - 50 sample price paths plotted over the prediction horizon
@@ -92,7 +92,7 @@ streamlit run streamlit_app.py
 - Shows the range of possible outcomes and market volatility
 
 ### 6. Price Distribution Histogram
-![Distribution](screenshots/distribution.png)
+![Distribution](img/stock_checker_app_piyaporn_graph_result_distibution.jpg)
 
 **Description:**
 - Bar chart showing distribution of final prices from all 1000+ simulations
@@ -101,7 +101,7 @@ streamlit run streamlit_app.py
 - Wider spread = more uncertainty
 
 ### 7. Prediction History Table
-![History](screenshots/history.png)
+![History](img/stock_checker_app_piyaporn_graph_result_history_check.jpg)
 
 **Description:**
 - Track all past predictions with columns:
@@ -125,7 +125,7 @@ streamlit run streamlit_app.py
 
 *Note: To add a GIF, use this format:*
 ```markdown
-![App Demo](gifs/demo.gif)
+![App Demo](img/demo_stock_predictor_piyaporn.gif)
 ```
 
 **GIF should show:**
