@@ -124,9 +124,9 @@ streamlit run streamlit_app.py
 [**INSERT GIF HERE**]
 
 *Note: To add a GIF, use this format:*
-```markdown
+
 ![App Demo](img/demo_stock_predictor_piyaporn.gif)
-```
+
 
 **GIF should show:**
 1. Loading the app
