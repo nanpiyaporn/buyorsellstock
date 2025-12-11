@@ -98,6 +98,17 @@ def load_prediction_history():
         return pd.DataFrame()
 
 
+def delete_prediction(index):
+    """Delete a prediction from history."""
+    init_history_file()
+    try:
+        df = pd.read_csv(HISTORY_FILE)
+        df = df.drop(index).reset_index(drop=True)
+        df.to_csv(HISTORY_FILE, index=False)
+    except:
+        pass
+
+
 @st.cache_data(ttl=3600)
 def get_current_price(ticker: str):
     try:
@@ -271,6 +282,14 @@ def main():
             st.success(f"Simulation complete ({sims} sims, horizon: {horizon_choice})")
             st.write(f"Predicted median price after {horizon_choice}: {median:,.2f}")
             st.write(f"10th percentile: {p10:,.2f}  —  90th percentile: {p90:,.2f}")
+            
+            # Calculate % differences
+            pct_diff_median = ((median - S0) / S0) * 100
+            pct_diff_p10 = ((p10 - S0) / S0) * 100
+            pct_diff_p90 = ((p90 - S0) / S0) * 100
+            
+            st.write(f"**Price change from today ({S0:,.2f}):**")
+            st.write(f"  Median: {pct_diff_median:+.2f}% | 10th %ile: {pct_diff_p10:+.2f}% | 90th %ile: {pct_diff_p90:+.2f}%")
 
             # plot sample paths
             fig, ax = plt.subplots(figsize=(8, 4))
@@ -295,45 +314,7 @@ def main():
     hist_df = load_prediction_history()
     
     if not hist_df.empty:
-        # Display editable history table
-        st.write("**All predictions made. Update actual prices when dates pass:**")
-        
-        # Create editable columns for actual price and recalculate accuracy
-        edited_rows = []
-        for idx, row in hist_df.iterrows():
-            col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11 = st.columns(11)
-            with col1:
-                st.write(row['prediction_date'][:10])
-            with col2:
-                st.write(row['ticker'])
-            with col3:
-                st.write(row['current_price'])
-            with col4:
-                st.write(row['horizon'])
-            with col5:
-                st.write(row['n_simulations'])
-            with col6:
-                st.write(row['random_seed'])
-            with col7:
-                st.write(row['median_price'])
-            with col8:
-                st.write(row['future_date'])
-            with col9:
-                actual = st.text_input(f"Actual price {idx}", value=row['actual_price'] or "", key=f"actual_{idx}")
-                edited_rows.append((idx, actual))
-            with col10:
-                if row['actual_price'] and row['median_price']:
-                    try:
-                        median_p = float(row['median_price'])
-                        actual_p = float(row['actual_price'])
-                        acc = 100 * (1 - abs(actual_p - median_p) / median_p)
-                        st.write(f"{acc:.1f}%")
-                    except:
-                        st.write("—")
-                else:
-                    st.write("—")
-            with col11:
-                st.write("")
+        st.write("**All predictions made. Update actual prices when dates pass or delete rows:**")
         
         # Header row
         col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11 = st.columns(11)
@@ -358,14 +339,57 @@ def main():
         with col10:
             st.write("**Accuracy**")
         with col11:
-            st.write("")
+            st.write("**Action**")
         
-        # Display table
-        display_cols = ['prediction_date', 'ticker', 'current_price', 'horizon', 'n_simulations', 
-                        'random_seed', 'median_price', 'future_date', 'actual_price', 'accuracy_pct']
-        display_df = hist_df[display_cols].copy()
-        display_df['prediction_date'] = pd.to_datetime(display_df['prediction_date']).dt.strftime("%Y-%m-%d")
-        st.dataframe(display_df, use_container_width=True)
+        # Data rows
+        for idx, row in hist_df.iterrows():
+            col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11 = st.columns(11)
+            with col1:
+                st.write(row['prediction_date'][:10])
+            with col2:
+                st.write(row['ticker'])
+            with col3:
+                st.write(row['current_price'])
+            with col4:
+                st.write(row['horizon'])
+            with col5:
+                st.write(row['n_simulations'])
+            with col6:
+                st.write(row['random_seed'])
+            with col7:
+                st.write(row['median_price'])
+            with col8:
+                st.write(row['future_date'])
+            with col9:
+                actual = st.text_input(f"Actual price {idx}", value=row['actual_price'] or "", key=f"actual_{idx}")
+                # Update CSV with actual price if entered
+                if actual and actual != row['actual_price']:
+                    try:
+                        actual_p = float(actual)
+                        median_p = float(row['median_price'])
+                        acc = 100 * (1 - abs(actual_p - median_p) / median_p)
+                        # Update the CSV
+                        hist_df.at[idx, 'actual_price'] = str(actual_p)
+                        hist_df.at[idx, 'accuracy_pct'] = f"{acc:.1f}%"
+                        hist_df.to_csv(HISTORY_FILE, index=False)
+                    except:
+                        pass
+            with col10:
+                if row['actual_price'] and row['median_price']:
+                    try:
+                        median_p = float(row['median_price'])
+                        actual_p = float(row['actual_price'])
+                        acc = 100 * (1 - abs(actual_p - median_p) / median_p)
+                        st.write(f"{acc:.1f}%")
+                    except:
+                        st.write("—")
+                else:
+                    st.write("—")
+            with col11:
+                if st.button("🗑️ Delete", key=f"del_pred_{idx}"):
+                    delete_prediction(idx)
+                    st.success("Prediction deleted!")
+                    st.rerun()
     else:
         st.info("No predictions yet. Run a Monte Carlo simulation to start tracking.")
 

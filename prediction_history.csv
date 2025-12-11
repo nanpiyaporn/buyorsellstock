@@ -1,0 +1,3 @@
+prediction_date,ticker,current_price,horizon,n_simulations,random_seed,median_price,p10,p90,future_date,actual_price,accuracy_pct
+2025-12-11 14:43:45,WMT,115.17,Next week,1000,42,115.55,111.41,120.05,2025-12-16,,
+2025-12-11 14:46:36,NGD,8.69,1 year,5000,45,9.50,4.24,20.94,2026-08-20,,
