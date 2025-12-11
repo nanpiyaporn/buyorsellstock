@@ -1,0 +1,374 @@
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+import os
+import csv
+import json
+
+
+st.set_page_config(page_title="Stock Predictor — Monte Carlo", layout="wide")
+
+HISTORY_FILE = "prediction_history.csv"
+SAVED_TICKERS_FILE = "saved_tickers.json"
+
+
+def init_saved_tickers():
+    """Create saved tickers file if it doesn't exist."""
+    if not os.path.exists(SAVED_TICKERS_FILE):
+        with open(SAVED_TICKERS_FILE, 'w') as f:
+            json.dump([], f)
+
+
+def load_saved_tickers():
+    """Load saved tickers from JSON."""
+    init_saved_tickers()
+    try:
+        with open(SAVED_TICKERS_FILE, 'r') as f:
+            tickers = json.load(f)
+        return list(set(tickers))  # Remove duplicates and return
+    except:
+        return []
+
+
+def save_ticker(ticker):
+    """Add ticker to saved list."""
+    init_saved_tickers()
+    tickers = load_saved_tickers()
+    ticker_upper = ticker.upper()
+    if ticker_upper not in tickers:
+        tickers.append(ticker_upper)
+        with open(SAVED_TICKERS_FILE, 'w') as f:
+            json.dump(tickers, f)
+
+
+def delete_ticker(ticker):
+    """Remove ticker from saved list."""
+    init_saved_tickers()
+    tickers = load_saved_tickers()
+    ticker_upper = ticker.upper()
+    if ticker_upper in tickers:
+        tickers.remove(ticker_upper)
+        with open(SAVED_TICKERS_FILE, 'w') as f:
+            json.dump(tickers, f)
+
+
+def init_history_file():
+    """Create history file if it doesn't exist."""
+    if not os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'prediction_date', 'ticker', 'current_price', 'horizon', 
+                'n_simulations', 'random_seed', 'median_price', 'p10', 'p90',
+                'future_date', 'actual_price', 'accuracy_pct'
+            ])
+
+
+def save_prediction(ticker, current_price, horizon, n_sims, seed, median, p10, p90, future_date):
+    """Save prediction to CSV."""
+    init_history_file()
+    with open(HISTORY_FILE, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ticker.upper(),
+            f"{current_price:.2f}",
+            horizon,
+            n_sims,
+            seed,
+            f"{median:.2f}",
+            f"{p10:.2f}",
+            f"{p90:.2f}",
+            future_date.strftime("%Y-%m-%d"),
+            "",  # actual_price (empty until date passes)
+            ""   # accuracy_pct (empty until date passes)
+        ])
+
+
+def load_prediction_history():
+    """Load prediction history from CSV."""
+    init_history_file()
+    try:
+        df = pd.read_csv(HISTORY_FILE)
+        return df
+    except:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600)
+def get_current_price(ticker: str):
+    try:
+        tk = yf.Ticker(ticker)
+        hist = tk.history(period="1d")
+        if not hist.empty:
+            return float(hist['Close'].iloc[-1])
+        info = tk.info
+        return float(info.get('regularMarketPrice', np.nan))
+    except Exception:
+        return np.nan
+
+
+@st.cache_data(ttl=3600)
+def get_history(ticker: str, period='5y'):
+    try:
+        df = yf.download(ticker, period=period, progress=False)
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def monte_carlo_simulation(S0, returns, n_sims=1000, n_steps=252, seed=42):
+    np.random.seed(seed)
+    # Convert to numpy array if pandas Series
+    if hasattr(returns, 'values'):
+        log_ret = returns.values
+    else:
+        log_ret = returns
+    
+    # Remove NaN values
+    log_ret = log_ret[~np.isnan(log_ret)]
+    
+    if len(log_ret) == 0:
+        raise ValueError("Not enough return data for simulation")
+    
+    mu = np.mean(log_ret)
+    sigma = np.std(log_ret)
+    drift = mu - 0.5 * (sigma ** 2)
+    
+    # Ensure S0 is a scalar float
+    S0 = float(S0)
+
+    rand = np.random.normal(0, 1, (n_steps, n_sims))
+    price_paths = np.zeros((n_steps + 1, n_sims))
+    price_paths[0, :] = S0
+    
+    for t in range(1, n_steps + 1):
+        price_paths[t, :] = price_paths[t - 1, :] * np.exp(drift + sigma * rand[t - 1, :])
+
+    return price_paths
+
+
+def trading_days_for_horizon(choice: str) -> int:
+    mapping = {
+        'Next week': 5,
+        'Month': 21,
+        '3 months': 63,
+        '6 months': 126,
+        '1 year': 252,
+    }
+    return mapping.get(choice, 21)
+
+
+def main():
+    st.title("Monte Carlo Stock Predictor — US Stocks")
+
+    # Top row: datetime and major indices
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        now = datetime.now()
+        st.markdown("**Current local date & time**")
+        st.write(now.strftime("%Y-%m-%d %H:%M:%S"))
+
+    with col2:
+        st.markdown("**Major US indices (current price)**")
+        idx_col1, idx_col2, idx_col3 = st.columns(3)
+        dji = get_current_price("^DJI")
+        ixic = get_current_price("^IXIC")
+        gspc = get_current_price("^GSPC")
+        idx_col1.metric("Dow Jones (^DJI)", f"{dji:,.2f}" if not np.isnan(dji) else "N/A")
+        idx_col2.metric("Nasdaq (^IXIC)", f"{ixic:,.2f}" if not np.isnan(ixic) else "N/A")
+        idx_col3.metric("S&P 500 (^GSPC)", f"{gspc:,.2f}" if not np.isnan(gspc) else "N/A")
+
+    st.markdown("---")
+
+    st.sidebar.header("Prediction settings")
+    
+    # Use session state for selected ticker
+    if "selected_ticker" not in st.session_state:
+        st.session_state.selected_ticker = "AAPL"
+    
+    ticker = st.sidebar.text_input("Ticker (US stock)", value=st.session_state.selected_ticker)
+    
+    # Save ticker button
+    if st.sidebar.button("💾 Save this ticker"):
+        if ticker.strip():
+            save_ticker(ticker.strip())
+            st.success(f"Saved {ticker.upper()}!")
+            st.rerun()
+    
+    # Saved tickers section
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Saved tickers")
+    saved_tickers = load_saved_tickers()
+    
+    if saved_tickers:
+        for saved_ticker in sorted(saved_tickers):
+            col1, col2 = st.sidebar.columns([3, 1])
+            with col1:
+                if st.button(f"📌 {saved_ticker}", key=f"btn_{saved_ticker}"):
+                    st.session_state.selected_ticker = saved_ticker
+            with col2:
+                if st.button("🗑️", key=f"del_{saved_ticker}"):
+                    delete_ticker(saved_ticker)
+                    st.rerun()
+    else:
+        st.sidebar.info("No saved tickers yet. Search and save one!")
+    
+    st.sidebar.markdown("---")
+    horizon_choice = st.sidebar.selectbox("Predict horizon", ['Next week', 'Month', '3 months', '6 months', '1 year'])
+    sims = st.sidebar.slider("Number of simulations", 100, 5000, 1000, step=100)
+    seed = st.sidebar.number_input("Random seed", value=42)
+
+    if not ticker:
+        st.warning("Please enter a ticker symbol in the sidebar.")
+        return
+
+    st.subheader(f"Ticker: {ticker.upper()}")
+    current_price = get_current_price(ticker)
+    st.write("Current price:", f"{current_price:,.2f}" if not np.isnan(current_price) else "N/A")
+
+    # Run simulation
+    if st.button("Run Monte Carlo Prediction"):
+        with st.spinner("Downloading data and running simulations..."):
+            hist = get_history(ticker, period='5y')
+            if hist.empty:
+                st.error("Could not download historical data for that ticker.")
+                return
+            if 'Adj Close' in hist.columns:
+                price_series = hist['Adj Close']
+            elif 'Close' in hist.columns:
+                price_series = hist['Close']
+            else:
+                st.error("Historical data does not contain close prices.")
+                return
+
+            # daily log returns
+            log_returns = np.log(price_series / price_series.shift(1))
+            log_returns = log_returns.dropna().values  # Convert to numpy array
+            S0 = float(price_series.iloc[-1])
+            n_steps = trading_days_for_horizon(horizon_choice)
+
+            try:
+                paths = monte_carlo_simulation(S0, log_returns, n_sims=sims, n_steps=n_steps, seed=int(seed))
+            except Exception as e:
+                st.error(f"Simulation failed: {e}")
+                return
+
+            final_prices = paths[-1]
+            median = np.median(final_prices)
+            p10 = np.percentile(final_prices, 10)
+            p90 = np.percentile(final_prices, 90)
+
+            # Calculate future date
+            future_date = datetime.now() + timedelta(days=n_steps)
+            
+            # Save prediction to history
+            save_prediction(ticker, S0, horizon_choice, sims, int(seed), median, p10, p90, future_date)
+
+            st.success(f"Simulation complete ({sims} sims, horizon: {horizon_choice})")
+            st.write(f"Predicted median price after {horizon_choice}: {median:,.2f}")
+            st.write(f"10th percentile: {p10:,.2f}  —  90th percentile: {p90:,.2f}")
+
+            # plot sample paths
+            fig, ax = plt.subplots(figsize=(8, 4))
+            sample = paths[:, :min(50, sims)]
+            ax.plot(sample)
+            ax.set_title(f"Sample simulated paths ({min(50, sims)} paths)")
+            ax.set_xlabel("Trading days")
+            ax.set_ylabel("Price")
+            st.pyplot(fig)
+
+            # histogram of final prices
+            fig2, ax2 = plt.subplots(figsize=(8, 3))
+            ax2.hist(final_prices, bins=50)
+            ax2.axvline(median, color='r', linestyle='--', label='Median')
+            ax2.legend()
+            ax2.set_title("Distribution of simulated final prices")
+            st.pyplot(fig2)
+
+    # Display prediction history
+    st.markdown("---")
+    st.subheader("Prediction History")
+    hist_df = load_prediction_history()
+    
+    if not hist_df.empty:
+        # Display editable history table
+        st.write("**All predictions made. Update actual prices when dates pass:**")
+        
+        # Create editable columns for actual price and recalculate accuracy
+        edited_rows = []
+        for idx, row in hist_df.iterrows():
+            col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11 = st.columns(11)
+            with col1:
+                st.write(row['prediction_date'][:10])
+            with col2:
+                st.write(row['ticker'])
+            with col3:
+                st.write(row['current_price'])
+            with col4:
+                st.write(row['horizon'])
+            with col5:
+                st.write(row['n_simulations'])
+            with col6:
+                st.write(row['random_seed'])
+            with col7:
+                st.write(row['median_price'])
+            with col8:
+                st.write(row['future_date'])
+            with col9:
+                actual = st.text_input(f"Actual price {idx}", value=row['actual_price'] or "", key=f"actual_{idx}")
+                edited_rows.append((idx, actual))
+            with col10:
+                if row['actual_price'] and row['median_price']:
+                    try:
+                        median_p = float(row['median_price'])
+                        actual_p = float(row['actual_price'])
+                        acc = 100 * (1 - abs(actual_p - median_p) / median_p)
+                        st.write(f"{acc:.1f}%")
+                    except:
+                        st.write("—")
+                else:
+                    st.write("—")
+            with col11:
+                st.write("")
+        
+        # Header row
+        col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11 = st.columns(11)
+        with col1:
+            st.write("**Pred Date**")
+        with col2:
+            st.write("**Ticker**")
+        with col3:
+            st.write("**Curr Price**")
+        with col4:
+            st.write("**Horizon**")
+        with col5:
+            st.write("**Sims**")
+        with col6:
+            st.write("**Seed**")
+        with col7:
+            st.write("**Median**")
+        with col8:
+            st.write("**Future Date**")
+        with col9:
+            st.write("**Actual Price**")
+        with col10:
+            st.write("**Accuracy**")
+        with col11:
+            st.write("")
+        
+        # Display table
+        display_cols = ['prediction_date', 'ticker', 'current_price', 'horizon', 'n_simulations', 
+                        'random_seed', 'median_price', 'future_date', 'actual_price', 'accuracy_pct']
+        display_df = hist_df[display_cols].copy()
+        display_df['prediction_date'] = pd.to_datetime(display_df['prediction_date']).dt.strftime("%Y-%m-%d")
+        st.dataframe(display_df, use_container_width=True)
+    else:
+        st.info("No predictions yet. Run a Monte Carlo simulation to start tracking.")
+
+
+if __name__ == '__main__':
+    main()
