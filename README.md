@@ -121,10 +121,6 @@ streamlit run streamlit_app.py
 
 ## 🎥 App Demo (GIF)
 
-[**INSERT GIF HERE**]
-
-*Note: To add a GIF, use this format:*
-
 ![App Demo](img/demo_stock_predictor_piyaporn.gif)
 
 
