@@ -51,7 +51,7 @@ streamlit run streamlit_app.py
   - Green ↑ arrow for gains, Red ↓ arrow for losses
 
 ### 2. Ticker Search & Saved Tickers Sidebar
-![Sidebar](screenshots/sidebar.png)
+![Sidebar](img/stock_checker_app_piyaporn_graph_sidebar.jpg)
 
 **Description:**
 - **Ticker input**: Enter any US stock ticker (e.g., AAPL, CVNA, WMT)
@@ -70,7 +70,7 @@ streamlit run streamlit_app.py
 - "Run Monte Carlo Prediction" button to start simulation
 
 ### 4. Simulation Results & Percentiles
-![Percentiles](img/stock_checker_app_piyaporn_graph_result.jpg)
+![Percentiles](img/stock_checker_app_piyaporn_graph_result_percent.jpg)
 
 **Description:**
 - **Success message**: Confirms simulation complete with number of sims and time horizon
@@ -82,7 +82,7 @@ streamlit run streamlit_app.py
   - "Price increase 38.66% from today:" (or decrease if negative)
 
 ### 5. Simulated distibution Paths Chart
-![simulation](img/stock_checker_app_piyaporn_graph_result_distibution.jpg)
+![simulation](img/stock_checker_app_piyaporn_graph_simulation.jpg)
 
 **Description:**
 - 50 sample price paths plotted over the prediction horizon
